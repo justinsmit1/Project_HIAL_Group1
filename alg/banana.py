@@ -29,7 +29,35 @@ def feature_function(traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]])
     Returns:
         A float32 array of shape (d,).  Returns the zero vector for empty input.
     """
-    pass
+    if len(traj_pairs) == 0:
+        return np.zeros(5, dtype=np.float32)
+
+    dists = []
+
+    for state, _action in traj_pairs:
+        obs = state["observation"]
+        goal = state["desired_goal"]
+
+        # This computes the distance to the goal and this is done at each time step
+        obj_pos = obs[7:10]
+        dist = np.linalg.norm(obj_pos - goal)
+
+        dists.append(dist)
+
+    dists = np.array(dists)
+
+    features = np.array(
+        [
+            dists.mean(), #Average distance of object to goal
+            dists[-1], #Final distance
+            dists.min(), #Closest the agent got to the goal
+            len(traj_pairs), # number of steps in trajectory
+            float(dists[-1] < 0.05), #Succes, 1 if object is reached, 0 otherwise.
+        ],
+        dtype=np.float32,
+    )
+
+    return features
 
 def capture_frame(env: Any, width: int = 320, height: int = 240) -> np.ndarray:
     """Render the current simulation state to an image via PyBullet offscreen rendering.
@@ -93,8 +121,14 @@ def setup_environment(*, render: bool = False) -> Any:
     Returns:
         The fully wrapped, reset environment.
     """
-    pass
 
+    env = PnPNewRobotEnv(render=render)
+    env = ResetWrapper(env)
+    env = ActionNormalizer(env)
+    env = TimeLimitWrapper(env, max_steps=150)
+    env.reset(seed=0)
+
+    return env
 
 def rollout(
     env: Any,
@@ -126,8 +160,17 @@ def rollout(
     frames.append(capture_frame(env))
 
     for t in range(T):
+        action = action_seq[t]
 
-        pass
+        next_state, reward, terminated, truncated, info = env.step(action)
+
+        traj_pairs.append((state, action))
+        frames.append(capture_frame(env))
+
+        state = next_state
+
+        if terminated or truncated:
+            break
 
     return traj_pairs, frames
 
@@ -150,9 +193,27 @@ def random_rollout(
             * traj_pairs is a list of (state dict, action) pairs;
             * frames is a list of uint8 RGB arrays.
     """
+    frames: List[np.ndarray] = []
+    traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]] = []
 
-    pass
+    state, _info = env.reset(seed=0)
+    frames.append(capture_frame(env))
 
+    for _ in range(max_steps):
+
+        action = env.action_space.sample()
+
+        next_state, reward, terminated, truncated, info = env.step(action)
+
+        traj_pairs.append((state, action))
+        frames.append(capture_frame(env))
+
+        state = next_state
+
+        if terminated or truncated:
+            break
+
+    return traj_pairs, frames
 
 def main() -> None:
     """generate expert and random trajectory clips, then serialise records.
@@ -164,7 +225,7 @@ def main() -> None:
     4. Serialise all TrajectoryRecord objects to
        ``<repo_root>/saved/trajectory_records.json``.
     """
-    env = setup_environment(render=True)
+    env = setup_environment(render=True) # CHECK
 
     repo_root = Path(__file__).resolve().parents[1]
     demo_dir = repo_root / "demo_data" / "PickAndPlace"
@@ -188,12 +249,39 @@ def main() -> None:
     print(f"\nGenerating {len(demos)} expert clips")
 
     for i, demo in enumerate(demos):
-        pass
+        action_seq = demo['action_trajectory']
+        traj_pairs, frames = rollout(env, action_seq)
+
+        clip_path = clips_dir / f"expert_{i}.mp4"
+
+        imageio.mimsave(clip_path, frames, **writer_kwargs)
+
+        features = feature_function(traj_pairs)  ## TO DO
+
+        record = TrajectoryRecord(
+            clip_path=str(clip_path),
+            features=features,
+        )
+
+        saved_records.append(record)
 
 
     print(f"\nGenerating 10 random clips")
+    for i in range(10):
+        traj_pairs, frames = random_rollout(env)
 
+        clip_path = clips_dir / f"random_{i}.mp4"
 
+        imageio.mimsave(clip_path, frames, **writer_kwargs)
+
+        features = feature_function(traj_pairs)
+
+        record = TrajectoryRecord(
+            clip_path=str(clip_path),
+            features=features,
+        )
+
+        saved_records.append(record)
 
 
     env.close()
