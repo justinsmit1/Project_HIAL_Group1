@@ -39,8 +39,17 @@ def setup_environment(*, render: bool = False) -> Any:
     Returns:
         The fully wrapped, reset environment.
     """
-    pass
+    env = PnPNewRobotEnv(render=render)
+    env = ResetWrapper(env)
+    env = ActionNormalizer(env)
+    env = TimeLimitWrapper(env, max_steps=150)
+    env.reset(seed=0)
 
+    return env
+
+
+
+    pass
 
 def learn_weights(
     traj_set: TrajectorySet,
@@ -50,29 +59,65 @@ def learn_weights(
     acquisition_function: str
 ) -> np.ndarray:
     """Run an active preference learning loop to infer reward feature weights.
+    #
+    #     Uses APReL's query optimizer together with a SamplingBasedBelief.  At each
+    #     iteration a pair of trajectories is selected and shown to the human annotator
+    #     via query.visualize().  The annotator's response updates the belief.
+    #
+    #     Args:
+    #         traj_set: The discrete set of candidate trajectories to query over.
+    #         num_queries: Number of preference queries to collect from the human.
+    #         seed: Seed for numpy's global RNG.
+    #         acquisition_function: Name of an acquisition function to use:
+    #             - `disagreement`: Based on `Katz. et al. (2019) <https://arxiv.org/abs/1907.05575>`_.
+    #             - `mutual_information`: Based on `Bıyık et al. (2019) <https://arxiv.org/abs/1910.04365>`_.
+    #             - `random`: Randomly chooses a query.
+    #             - `regret`: Based on `Wilde et al. (2020) <https://arxiv.org/abs/2005.04067>`_.
+    #             - `thompson`: Based on `Tucker et al. (2019) <https://arxiv.org/abs/1909.12316>`_.
+    #             - `volume_removal`: Based on `Sadigh et al. (2017) <http://m.roboticsproceedings.org/rss13/p53.pdf>`_ and `Bıyık et al. <https://arxiv.org/abs/1904.02209>`_.
+    #
+    #     Returns:
+    #         A float32 array of shape (feature_dim,) containing the posterior
+    #         mean reward weights after all queries have been collected.
+    #     """
+    #     # https://github.com/Stanford-ILIAD/APReL
+    #     # use this for the APReL's query optimizer together with a SamplingBasedBelief.
 
-    Uses APReL's query optimizer together with a SamplingBasedBelief.  At each
-    iteration a pair of trajectories is selected and shown to the human annotator
-    via query.visualize().  The annotator's response updates the belief.
+    feature_dim = traj_set.features_matrix.shape[1]
+    print("Feature dimension:", feature_dim)
 
-    Args:
-        traj_set: The discrete set of candidate trajectories to query over.
-        num_queries: Number of preference queries to collect from the human.
-        seed: Seed for numpy's global RNG.
-        acquisition_function: Name of an acquisition function to use:
-            - `disagreement`: Based on `Katz. et al. (2019) <https://arxiv.org/abs/1907.05575>`_.
-            - `mutual_information`: Based on `Bıyık et al. (2019) <https://arxiv.org/abs/1910.04365>`_.
-            - `random`: Randomly chooses a query.
-            - `regret`: Based on `Wilde et al. (2020) <https://arxiv.org/abs/2005.04067>`_.
-            - `thompson`: Based on `Tucker et al. (2019) <https://arxiv.org/abs/1909.12316>`_.
-            - `volume_removal`: Based on `Sadigh et al. (2017) <http://m.roboticsproceedings.org/rss13/p53.pdf>`_ and `Bıyık et al. <https://arxiv.org/abs/1904.02209>`_.
+    query_optimizer = QueryOptimizerDiscreteTrajectorySet(traj_set)
+    params = {
+        "weights": util_funs.get_random_normalized_vector(feature_dim)
+    }
+    user_model = SoftmaxUser(params)
 
-    Returns:
-        A float32 array of shape (feature_dim,) containing the posterior
-        mean reward weights after all queries have been collected.
-    """
-    pass
+    belief = SamplingBasedBelief(user_model, [], params)
 
+    # Dummy preference query (optimizer will replace trajectories)
+    query = PreferenceQuery(traj_set[:2])
+
+    for i in range(num_queries):
+        # Optimize query
+        queries, _ = query_optimizer.optimize(
+            acquisition_function,
+            belief,
+            query
+        )
+
+        best_query = queries[0]
+
+        print(f"\nQuery {i + 1}/{num_queries}")
+
+        # Show trajectories to human
+        best_query.visualize()
+        response = user_model.respond(best_query)[0]
+        # Update belief
+        belief.update(Preference(best_query, response))
+
+        print("Updated parameter estimate:", belief.mean)
+
+    return belief.mean['weights'].astype(np.float32)
 
 def save_weights(weights: np.ndarray, out_path: Path) -> None:
     """Serialise learned feature weights to a two-column CSV file.
@@ -123,7 +168,7 @@ def main() -> None:
     out_path = saved_dir / "feature_weights.csv"
 
     try:
-        weights = learn_weights(trajectories, num_queries=10, seed=0)
+        weights = learn_weights(trajectories, num_queries=10, seed=0, acquisition_function = "random")
     except Exception as e:
         raise
     finally:
