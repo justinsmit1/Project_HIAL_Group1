@@ -98,7 +98,6 @@ def learn_weights(
     query = PreferenceQuery(traj_set[:2])
 
     for i in range(num_queries):
-        # Optimize query
         queries, _ = query_optimizer.optimize(
             acquisition_function,
             belief,
@@ -109,10 +108,10 @@ def learn_weights(
 
         print(f"\nQuery {i + 1}/{num_queries}")
 
-        # Show trajectories to human
         best_query.visualize()
+
         response = user_model.respond(best_query)[0]
-        # Update belief
+
         belief.update(Preference(best_query, response))
 
         print("Updated parameter estimate:", belief.mean)
