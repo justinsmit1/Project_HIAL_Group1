@@ -47,16 +47,15 @@ def setup_environment(*, render: bool = False) -> Any:
 
     return env
 
-
-
     pass
+
 
 def learn_weights(
     traj_set: TrajectorySet,
     *,
     num_queries: int = 10,
     seed: int = 0,
-    acquisition_function: str
+    acquisition_function: str,
 ) -> np.ndarray:
     """Run an active preference learning loop to infer reward feature weights.
     #
@@ -79,7 +78,7 @@ def learn_weights(
     #     Returns:
     #         A float32 array of shape (feature_dim,) containing the posterior
     #         mean reward weights after all queries have been collected.
-    #     """
+    #"""
     #     # https://github.com/Stanford-ILIAD/APReL
     #     # use this for the APReL's query optimizer together with a SamplingBasedBelief.
 
@@ -87,9 +86,7 @@ def learn_weights(
     print("Feature dimension:", feature_dim)
 
     query_optimizer = QueryOptimizerDiscreteTrajectorySet(traj_set)
-    params = {
-        "weights": util_funs.get_random_normalized_vector(feature_dim)
-    }
+    params = {"weights": util_funs.get_random_normalized_vector(feature_dim)}
     user_model = SoftmaxUser(params)
 
     belief = SamplingBasedBelief(user_model, [], params)
@@ -98,11 +95,7 @@ def learn_weights(
     query = PreferenceQuery(traj_set[:2])
 
     for i in range(num_queries):
-        queries, _ = query_optimizer.optimize(
-            acquisition_function,
-            belief,
-            query
-        )
+        queries, _ = query_optimizer.optimize(acquisition_function, belief, query)
 
         best_query = queries[0]
 
@@ -116,7 +109,8 @@ def learn_weights(
 
         print("Updated parameter estimate:", belief.mean)
 
-    return belief.mean['weights'].astype(np.float32)
+    return belief.mean["weights"].astype(np.float32)
+
 
 def save_weights(weights: np.ndarray, out_path: Path) -> None:
     """Serialise learned feature weights to a two-column CSV file.
@@ -167,7 +161,9 @@ def main() -> None:
     out_path = saved_dir / "feature_weights.csv"
 
     try:
-        weights = learn_weights(trajectories, num_queries=10, seed=0, acquisition_function = "random")
+        weights = learn_weights(
+            trajectories, num_queries=10, seed=0, acquisition_function="random"
+        )
     except Exception as e:
         raise
     finally:
