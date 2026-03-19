@@ -20,51 +20,111 @@ from utils.env_wrappers import (
 def feature_function(
     traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]],
 ) -> np.ndarray:
-    """Compute a feature vector summarising a trajectory.
-
-    The designed features are:
-    ##########################
-          Your Features
-    ##########################
-
-    Args:
-        traj_pairs: A list of (state_dict, action) tuples produced by rollout
-            or random_rollout.  Each state_dict must contain the keys
-            "observation" (raw obs array, object xyz at indices 7–9) and
-            "desired_goal" (goal xyz).
-
-    Returns:
-        A float32 array of shape (d,).  Returns the zero vector for empty input.
-    """
     if len(traj_pairs) == 0:
-        return np.zeros(5, dtype=np.float32)
+        return np.zeros(8, dtype=np.float32)
 
-    dists = []
+    obj_goal_dists = []
+    gripper_obj_dists = []
+    gripper_goal_dists = []
+    success_steps = []
 
     for state, _action in traj_pairs:
         obs = state["observation"]
         goal = state["desired_goal"]
 
-        # This computes the distance to the goal and this is done at each time step
-        obj_pos = obs[7:10]
-        dist = np.linalg.norm(obj_pos - goal)
+        # Positions
+        ee_pos = obs[0:3]  # gripper position
+        obj_pos = obs[7:10]  # object position
 
-        dists.append(dist)
+        # Distances
+        obj_goal_dist = np.linalg.norm(obj_pos - goal)
+        gripper_obj_dist = np.linalg.norm(ee_pos - obj_pos)
+        gripper_goal_dist = np.linalg.norm(ee_pos - goal)
 
-    dists = np.array(dists)
+        obj_goal_dists.append(obj_goal_dist)
+        gripper_obj_dists.append(gripper_obj_dist)
+        gripper_goal_dists.append(gripper_goal_dist)
+
+        # success threshold
+        success_steps.append(float(obj_goal_dist < 0.17))
+
+    obj_goal_dists = np.array(obj_goal_dists)
+    gripper_obj_dists = np.array(gripper_obj_dists)
+    gripper_goal_dists = np.array(gripper_goal_dists)
+    success_steps = np.array(success_steps)
 
     features = np.array(
         [
-            dists.mean(),  # Average distance of object to goal
-            dists[-1],  # Final distance
-            dists.min(),  # Closest the agent got to the goal
-            len(traj_pairs),  # number of steps in trajectory
-            float(dists[-1] < 0.05),  # Succes, 1 if object is reached, 0 otherwise.
+            obj_goal_dists.mean(),  # avg object → goal distance
+            obj_goal_dists[-1],  # final object → goal distance
+            obj_goal_dists.min(),  # closest object → goal
+            gripper_obj_dists.mean(),  # avg gripper → object distance
+            gripper_obj_dists[-1],  # final gripper → object distance
+            gripper_goal_dists[-1],  # final gripper → goal distance
+            len(traj_pairs),  # trajectory length
+            success_steps.mean(),  # fraction of successful steps
         ],
         dtype=np.float32,
     )
 
     return features
+
+
+# def feature_function(traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]]) -> np.ndarray:
+#     """Compute a feature vector summarising a trajectory.
+#
+#     The designed features are:
+#     ##########################
+#           Your Features
+#     ##########################
+#
+#     Args:
+#         traj_pairs: A list of (state_dict, action) tuples produced by rollout
+#             or random_rollout.  Each state_dict must contain the keys
+#             "observation" (raw obs array, object xyz at indices 7–9) and
+#             "desired_goal" (goal xyz).
+#
+#     Returns:
+#         A float32 array of shape (d,).  Returns the zero vector for empty input.
+#     """
+#     if len(traj_pairs) == 0:
+#         return np.zeros(5, dtype=np.float32)
+#
+#     dists = []
+#     sum_dist_to_goal = []
+#
+#     for state, _action in traj_pairs:
+#         obs = state["observation"]
+#         achieved = state["achieved_goal"]
+#         goal = state["desired_goal"]
+#
+#         # This computes the distance to the goal and this is done at each time step
+#         obj_pos = obs[7:10]
+#         dist = np.linalg.norm(obj_pos - goal)
+#
+#         #print(f"achieved vs goal: {dist} -> {goal}")
+#
+#         sum_dist_to_goal.append(float(dist < 0.17))  # threshold for success
+#
+#         dists.append(dist)
+#
+#     dists = np.array(dists)
+#     sum_dist_to_goal = np.array(sum_dist_to_goal)
+#
+#     features = np.array(
+#         [
+#             dists.mean(), #Average distance of object to goal
+#             dists[-1], #Final distance
+#             dists.min(), #Closest the agent got to the goal
+#             len(traj_pairs), # number of steps in trajectory
+#             # distance hand to banana
+#             # distance banana to goal
+#             sum_dist_to_goal.mean()
+#         ],
+#         dtype=np.float32,
+#     )
+#
+#     return features
 
 
 def capture_frame(env: Any, width: int = 320, height: int = 240) -> np.ndarray:
@@ -248,6 +308,9 @@ def main() -> None:
     print(f"\nLoaded {len(demos)} expert demos from: {demo_dir}")
 
     saved_records: List[TrajectoryRecord] = []
+    import csv
+
+    feature_rows = []
 
     fps = 30
     writer_kwargs: Dict[str, Any] = dict(
@@ -266,7 +329,15 @@ def main() -> None:
 
         imageio.mimsave(clip_path, frames, **writer_kwargs)
 
-        features = feature_function(traj_pairs)  ## TO DO
+        features = feature_function(traj_pairs)
+
+        feature_rows.append(
+            {
+                "type": "expert",
+                "clip": str(clip_path),
+                **{f"f{j}": float(features[j]) for j in range(len(features))},
+            }
+        )
 
         record = TrajectoryRecord(
             clip_path=str(clip_path),
@@ -285,6 +356,14 @@ def main() -> None:
 
         features = feature_function(traj_pairs)
 
+        feature_rows.append(
+            {
+                "type": "random",
+                "clip": str(clip_path),
+                **{f"f{j}": float(features[j]) for j in range(len(features))},
+            }
+        )
+
         record = TrajectoryRecord(
             clip_path=str(clip_path),
             features=features,
@@ -299,6 +378,15 @@ def main() -> None:
         json.dump([r.to_json() for r in saved_records], f, indent=2)
 
     print(f"Saved {len(saved_records)} trajectory records to {out_path}")
+
+    csv_path = out_path / "trajectory_features.csv"
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=feature_rows[0].keys())
+        writer.writeheader()
+        writer.writerows(feature_rows)
+
+    print(f"Saved feature CSV to {csv_path}")
 
 
 if __name__ == "__main__":
