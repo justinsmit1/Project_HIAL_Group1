@@ -1,5 +1,6 @@
 import os
 from time import sleep
+from Project_HIAL_Group1.alg.banana import feature_function, rollout
 from envs.task_envs import PnPNewRobotEnv
 from utils.env_wrappers import ActionNormalizer, ResetWrapper, TimeLimitWrapper
 import csv
@@ -40,7 +41,7 @@ import matplotlib.pyplot as plt
 
 # load weights
 repo_root = Path(__file__).resolve().parents[1]
-weights_path = repo_root / "saved" / "feature_weights.csv"
+weights_path = repo_root / "saved" / "feature_weights_volume_removal.csv"
 weights = []
 with open(weights_path) as fw:
     reader = csv.DictReader(fw)
@@ -51,18 +52,46 @@ weights = np.array(weights)
 
 
 # reward function
-def comp_reward(t, dists, arm_dists, weights, episode_success, num_steps):
-    # reward for banana getting close to plate
-    banana_to_plate = weights[0] * (-dists[t])
-    # reward for arm getting close to banana (helps agent learn to pick up)
-    arm_to_banana = -arm_dists[t]
-    # step penalty
-    step_penalty = weights[3]
-    # terminal bonus
-    terminal = weights[4] if (t == num_steps - 1 and episode_success) else 0
+def comp_reward(flat_states, T, weights, episode_success):
+    goal_start = flat_states[0].shape[0] - 3
 
-    per_step = banana_to_plate + arm_to_banana + step_penalty
-    return per_step + terminal
+    obj_goal_dists = np.array(
+        [
+            np.linalg.norm(
+                flat_states[t][7:10] - flat_states[t][goal_start : goal_start + 3]
+            )
+            for t in range(T)
+        ]
+    )
+    gripper_obj_dists = np.array(
+        [np.linalg.norm(flat_states[t][0:3] - flat_states[t][7:10]) for t in range(T)]
+    )
+    gripper_goal_dists = np.array(
+        [
+            np.linalg.norm(
+                flat_states[t][0:3] - flat_states[t][goal_start : goal_start + 3]
+            )
+            for t in range(T)
+        ]
+    )
+    success_steps = np.array([float(obj_goal_dists[t] < 0.17) for t in range(T)])
+
+    features = np.array(
+        [
+            obj_goal_dists.mean(),  # 0: avg object → goal distance
+            obj_goal_dists[-1],  # 1: final object → goal distance
+            obj_goal_dists.min(),  # 2: closest object → goal
+            gripper_obj_dists.mean(),  # 3: avg gripper → object distance
+            gripper_obj_dists[-1],  # 4: final gripper → object distance
+            gripper_goal_dists[-1],  # 5: final gripper → goal distance
+            float(T),  # 6: trajectory length
+            success_steps.mean(),  # 7: fraction of successful steps
+        ],
+        dtype=np.float32,
+    )
+
+    total_reward = np.dot(weights, features)
+    return total_reward / T
 
 
 # create awac agent
@@ -115,6 +144,8 @@ def main() -> None:
     demo_dir = repo_root / "demo_data" / "PickAndPlace"
     demos = prepare_demo_pool(demo_dir, verbose=True)
 
+    rollout_env = setup_environment(render=False)
+
     for demo in demos:
         states = demo["state_trajectory"]
         actions = demo["action_trajectory"]
@@ -123,15 +154,18 @@ def main() -> None:
         dones = demo["done_trajectory"]
         T = len(actions)
 
-        dists, arm_dists = compute_distances(states, T)
+        traj_pairs, _ = rollout(rollout_env, actions)
+        features = feature_function(traj_pairs)
+        total_reward = np.dot(weights, features)
+        per_step_reward = total_reward / T
+
         episode_success = bool(np.squeeze(dones[-1]))
 
         for t in range(T):
-            reward = comp_reward(t, dists, arm_dists, weights, episode_success, T)
             agent.replay_buffer.store(
                 states[t],
                 actions[t],
-                reward,
+                per_step_reward,
                 next_states[t],
                 float(np.squeeze(dones[t])),
             )
@@ -160,7 +194,7 @@ def main() -> None:
     # print("demo state[7], ", states[7])
     # print(states[0][19:])
     total_steps = 0
-    max_steps = 15000
+    max_steps = 10000
     last_save = 0
     steps = []
     success_rates = []
@@ -198,29 +232,26 @@ def main() -> None:
         # test
         episode_success = bool(currEpisode_info[-1].get("is_success", False))
 
+        per_step_reward = comp_reward(currEpisode_states, T, weights, episode_success)
         print(
-            f"Step {total_steps} | Train ep success: {episode_success} | final info: {currEpisode_info[-1]}"
+            f"Step {total_steps} | Train ep success: {episode_success} | final info: {currEpisode_info[-1] } | Reward {per_step_reward}"
         )
 
-        dists, arm_dists = compute_distances(currEpisode_states, T)
-
         for t in range(T):
-            # currEpisode_dones is bool of wether the episode finished at timestep t or not
-            reward = comp_reward(t, dists, arm_dists, weights, episode_success, T)
-
             # store transitions in replay buffer
             agent.replay_buffer.store(
                 currEpisode_states[t],
                 currEpisode_actions[t],
-                reward,
+                per_step_reward,
                 currEpisode_states[t + 1],
                 float(t == T - 1),
             )
 
-        # update agent
+        # update agent — multiple updates per episode (1:1 update-to-data ratio)
         if agent.replay_buffer.size > agent.batch_size:
-            batch = agent.replay_buffer.sample_batch(agent.batch_size)
-            agent.update(data=batch, update_timestep=total_steps)
+            for _ in range(T):
+                batch = agent.replay_buffer.sample_batch(agent.batch_size)
+                agent.update(data=batch, update_timestep=total_steps)
 
         # print(f"Loss Q: {agent.compute_loss_q(data=batch)}, Loss Pi: {agent.compute_loss_pi(data=batch)}")
 
