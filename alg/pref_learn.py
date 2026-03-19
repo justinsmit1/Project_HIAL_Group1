@@ -47,10 +47,6 @@ def setup_environment(*, render: bool = False) -> Any:
 
     return env
 
-
-
-    pass
-
 def learn_weights(
     traj_set: TrajectorySet,
     *,
@@ -83,6 +79,22 @@ def learn_weights(
     #     # https://github.com/Stanford-ILIAD/APReL
     #     # use this for the APReL's query optimizer together with a SamplingBasedBelief.
 
+
+    valid_acquisition_functions = {
+        "disagreement",
+        "mutual_information",
+        "random",
+        "regret",
+        "thompson",
+        "volume_removal",
+    }
+
+    if acquisition_function not in valid_acquisition_functions:
+        raise ValueError(
+            f"Invalid acquisition_function '{acquisition_function}'. "
+            f"Must be one of {valid_acquisition_functions}"
+        )
+
     feature_dim = traj_set.features_matrix.shape[1]
     print("Feature dimension:", feature_dim)
 
@@ -94,18 +106,17 @@ def learn_weights(
 
     belief = SamplingBasedBelief(user_model, [], params)
 
-    # Dummy preference query (optimizer will replace trajectories)
     query = PreferenceQuery(traj_set[:2])
 
     for i in range(num_queries):
-        queries, _ = query_optimizer.optimize(
+        queries, objective_values = query_optimizer.optimize(
             acquisition_function,
             belief,
             query
         )
 
         best_query = queries[0]
-
+        print(f"Objective value: {objective_values[0]}")
         print(f"\nQuery {i + 1}/{num_queries}")
 
         best_query.visualize()
@@ -114,7 +125,7 @@ def learn_weights(
 
         belief.update(Preference(best_query, response))
 
-        print("Updated parameter estimate:", belief.mean)
+        print("Estimated user parameters:", belief.mean)
 
     return belief.mean['weights'].astype(np.float32)
 
@@ -164,10 +175,18 @@ def main() -> None:
         [TrajectoryRecord.from_json(r).to_aprel(aprel_env) for r in records]
     )
 
-    out_path = saved_dir / "feature_weights.csv"
+    # "disagreement", DONE
+    # "mutual_information", DONE
+    # "random", DONE
+    # "regret", ERROR
+    # "thompson", DONE
+    # "volume_removal", DONE
+
+    acquisition_function = "volume_removal"
+    out_path = saved_dir / f"feature_weights_{acquisition_function}.csv"
 
     try:
-        weights = learn_weights(trajectories, num_queries=10, seed=0, acquisition_function = "random")
+        weights = learn_weights(trajectories, num_queries=10, seed=0, acquisition_function = acquisition_function)
     except Exception as e:
         raise
     finally:
