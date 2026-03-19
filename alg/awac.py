@@ -7,7 +7,7 @@ from torch.optim import Adam
 # import d4rl
 import gym
 import time
-import core as core
+from . import core
 
 # from alg.utils.logx import EpochLogger
 import torch.nn.functional as F

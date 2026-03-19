@@ -9,10 +9,17 @@ import numpy as np
 
 from envs.task_envs import PnPNewRobotEnv
 from utils.demos import prepare_demo_pool
-from utils.env_wrappers import ActionNormalizer, ResetWrapper, TimeLimitWrapper, TrajectoryRecord
+from utils.env_wrappers import (
+    ActionNormalizer,
+    ResetWrapper,
+    TimeLimitWrapper,
+    TrajectoryRecord,
+)
 
 
-def feature_function(traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]]) -> np.ndarray:
+def feature_function(
+    traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]],
+) -> np.ndarray:
     """Compute a feature vector summarising a trajectory.
 
     The designed features are:
@@ -48,16 +55,17 @@ def feature_function(traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]])
 
     features = np.array(
         [
-            dists.mean(), #Average distance of object to goal
-            dists[-1], #Final distance
-            dists.min(), #Closest the agent got to the goal
-            len(traj_pairs), # number of steps in trajectory
-            float(dists[-1] < 0.05), #Succes, 1 if object is reached, 0 otherwise.
+            dists.mean(),  # Average distance of object to goal
+            dists[-1],  # Final distance
+            dists.min(),  # Closest the agent got to the goal
+            len(traj_pairs),  # number of steps in trajectory
+            float(dists[-1] < 0.05),  # Succes, 1 if object is reached, 0 otherwise.
         ],
         dtype=np.float32,
     )
 
     return features
+
 
 def capture_frame(env: Any, width: int = 320, height: int = 240) -> np.ndarray:
     """Render the current simulation state to an image via PyBullet offscreen rendering.
@@ -129,6 +137,7 @@ def setup_environment(*, render: bool = False) -> Any:
     env.reset(seed=0)
 
     return env
+
 
 def rollout(
     env: Any,
@@ -215,6 +224,7 @@ def random_rollout(
 
     return traj_pairs, frames
 
+
 def main() -> None:
     """generate expert and random trajectory clips, then serialise records.
 
@@ -225,7 +235,7 @@ def main() -> None:
     4. Serialise all TrajectoryRecord objects to
        ``<repo_root>/saved/trajectory_records.json``.
     """
-    env = setup_environment(render=True) # CHECK
+    env = setup_environment(render=True)  # CHECK
 
     repo_root = Path(__file__).resolve().parents[1]
     demo_dir = repo_root / "demo_data" / "PickAndPlace"
@@ -249,7 +259,7 @@ def main() -> None:
     print(f"\nGenerating {len(demos)} expert clips")
 
     for i, demo in enumerate(demos):
-        action_seq = demo['action_trajectory']
+        action_seq = demo["action_trajectory"]
         traj_pairs, frames = rollout(env, action_seq)
 
         clip_path = clips_dir / f"expert_{i}.mp4"
@@ -264,7 +274,6 @@ def main() -> None:
         )
 
         saved_records.append(record)
-
 
     print(f"\nGenerating 10 random clips")
     for i in range(10):
@@ -282,7 +291,6 @@ def main() -> None:
         )
 
         saved_records.append(record)
-
 
     env.close()
 
