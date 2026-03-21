@@ -1,392 +1,277 @@
-from __future__ import annotations
-
+import os
+import csv
 import json
+import imageio
+import numpy as np
+import torch
+import gymnasium as gym
+import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import imageio
-import numpy as np
-
+# Internal Imports
 from envs.task_envs import PnPNewRobotEnv
-from utils.demos import prepare_demo_pool
 from utils.env_wrappers import (
     ActionNormalizer,
     ResetWrapper,
     TimeLimitWrapper,
-    TrajectoryRecord,
+    reconstruct_state,
 )
+from utils.demos import prepare_demo_pool
+from alg.awac import AWAC
+
+# ==========================================
+# 1. CONFIGURATION & HYPERPARAMETERS
+# ==========================================
+MAX_STEPS = 20000  # Total online environment steps
+PRETRAIN_STEPS = 10000  # Offline iterations on demo data
+EVAL_EVERY = 2000  # How often to run evaluation and save video
+BATCH_SIZE = 256  # Transitions per gradient update
+SAVE_VIDEO = True  # Enable MP4 generation during eval
+
+repo_root = Path(__file__).resolve().parents[1]
+weights_path = repo_root / "saved" / "feature_weights_volume_removal.csv"
+output_dir = repo_root / "saved" / "policy_learning"
+clips_dir = output_dir / "clips"
+
+os.makedirs(clips_dir, exist_ok=True)
 
 
-def feature_function(
-    traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]],
-) -> np.ndarray:
-    if len(traj_pairs) == 0:
-        return np.zeros(8, dtype=np.float32)
-
-    obj_goal_dists = []
-    gripper_obj_dists = []
-    gripper_goal_dists = []
-    success_steps = []
-
-    for state, _action in traj_pairs:
-        obs = state["observation"]
-        goal = state["desired_goal"]
-
-        # Positions
-        ee_pos = obs[0:3]  # gripper position
-        obj_pos = obs[7:10]  # object position
-
-        # Distances
-        obj_goal_dist = np.linalg.norm(obj_pos - goal)
-        gripper_obj_dist = np.linalg.norm(ee_pos - obj_pos)
-        gripper_goal_dist = np.linalg.norm(ee_pos - goal)
-
-        obj_goal_dists.append(obj_goal_dist)
-        gripper_obj_dists.append(gripper_obj_dist)
-        gripper_goal_dists.append(gripper_goal_dist)
-
-        # success threshold
-        success_steps.append(float(obj_goal_dist < 0.17))
-
-    obj_goal_dists = np.array(obj_goal_dists)
-    gripper_obj_dists = np.array(gripper_obj_dists)
-    gripper_goal_dists = np.array(gripper_goal_dists)
-    success_steps = np.array(success_steps)
-
-    features = np.array(
-        [
-            obj_goal_dists.mean(),  # avg object → goal distance
-            obj_goal_dists[-1],  # final object → goal distance
-            obj_goal_dists.min(),  # closest object → goal
-            gripper_obj_dists.mean(),  # avg gripper → object distance
-            gripper_obj_dists[-1],  # final gripper → object distance
-            gripper_goal_dists[-1],  # final gripper → goal distance
-            len(traj_pairs),  # trajectory length
-            success_steps.mean(),  # fraction of successful steps
-        ],
-        dtype=np.float32,
-    )
-
-    return features
+# ==========================================
+# 2. REWARD & DISTANCE UTILITIES
+# ==========================================
+def load_weights():
+    """Loads weights from CSV or defaults to sensible PnP values."""
+    if weights_path.exists():
+        weights = []
+        with open(weights_path) as fw:
+            reader = csv.DictReader(fw)
+            for row in reader:
+                weights.append(float(row["weight"]))
+        return np.array(weights)
+    else:
+        # Fallback: [Obj2Goal, FinalDist, MinDist, StepPenalty, SuccessBonus]
+        return np.array([1.5, 2.0, 0.5, -0.01, 20.0])
 
 
-# def feature_function(traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]]) -> np.ndarray:
-#     """Compute a feature vector summarising a trajectory.
-#
-#     The designed features are:
-#     ##########################
-#           Your Features
-#     ##########################
-#
-#     Args:
-#         traj_pairs: A list of (state_dict, action) tuples produced by rollout
-#             or random_rollout.  Each state_dict must contain the keys
-#             "observation" (raw obs array, object xyz at indices 7–9) and
-#             "desired_goal" (goal xyz).
-#
-#     Returns:
-#         A float32 array of shape (d,).  Returns the zero vector for empty input.
-#     """
-#     if len(traj_pairs) == 0:
-#         return np.zeros(5, dtype=np.float32)
-#
-#     dists = []
-#     sum_dist_to_goal = []
-#
-#     for state, _action in traj_pairs:
-#         obs = state["observation"]
-#         achieved = state["achieved_goal"]
-#         goal = state["desired_goal"]
-#
-#         # This computes the distance to the goal and this is done at each time step
-#         obj_pos = obs[7:10]
-#         dist = np.linalg.norm(obj_pos - goal)
-#
-#         #print(f"achieved vs goal: {dist} -> {goal}")
-#
-#         sum_dist_to_goal.append(float(dist < 0.17))  # threshold for success
-#
-#         dists.append(dist)
-#
-#     dists = np.array(dists)
-#     sum_dist_to_goal = np.array(sum_dist_to_goal)
-#
-#     features = np.array(
-#         [
-#             dists.mean(), #Average distance of object to goal
-#             dists[-1], #Final distance
-#             dists.min(), #Closest the agent got to the goal
-#             len(traj_pairs), # number of steps in trajectory
-#             # distance hand to banana
-#             # distance banana to goal
-#             sum_dist_to_goal.mean()
-#         ],
-#         dtype=np.float32,
-#     )
-#
-#     return features
+weights = load_weights()
 
 
-def capture_frame(env: Any, width: int = 320, height: int = 240) -> np.ndarray:
-    """Render the current simulation state to an image via PyBullet offscreen rendering.
-
-    Attempts a hardware-accelerated render using ER_BULLET_HARDWARE_OPENGL.
-    Falls back to a black frame of the requested dimensions if rendering fails
-
-    Args:
-        env: A gym environment whose .unwrapped.sim.physics_client
-            exposes the PyBullet physics client.
-        width: Output image width in pixels.
-        height: Output image height in pixels.
-
-    Returns:
-        A uint8 array of shape (height, width, 3) in RGB channel order.
+def compute_distances(flat_states: List[np.ndarray], T: int):
     """
-    try:
-        base = getattr(env, "unwrapped", env)
-        pc = base.sim.physics_client
-
-        view_matrix = pc.computeViewMatrixFromYawPitchRoll(
-            cameraTargetPosition=[0.0, 0.0, 0.0],
-            distance=1.0,
-            yaw=45,
-            pitch=-30,
-            roll=0,
-            upAxisIndex=2,
-        )
-        proj_matrix = pc.computeProjectionMatrixFOV(
-            fov=60.0,
-            aspect=float(width) / float(height),
-            nearVal=0.01,
-            farVal=10.0,
-        )
-
-        _, _, px, _, _ = pc.getCameraImage(
-            width=width,
-            height=height,
-            viewMatrix=view_matrix,
-            projectionMatrix=proj_matrix,
-            renderer=pc.ER_BULLET_HARDWARE_OPENGL,
-        )
-        rgba = np.reshape(px, (height, width, 4))
-        return rgba[:, :, :3].astype(np.uint8, copy=False)
-
-    except Exception:
-        return np.zeros((height, width, 3), dtype=np.uint8)
-
-
-def setup_environment(*, render: bool = False) -> Any:
-    """Construct and initialise the Pick-and-Place environment with standard wrappers.
-
-    Wrapper stack (inner → outer):
-    PnPNewRobotEnv → ResetWrapper → ActionNormalizer → TimeLimitWrapper (150 steps).
-
-    The environment is seeded with seed=0 immediately after construction.
-
-    Args:
-        render: If True, opens a PyBullet GUI window.
-
-    Returns:
-        The fully wrapped, reset environment.
+    Computes distances based on specific state vector indices.
+    Indices 0:3 = Gripper, 7:10 = Object, Last 3 = Goal.
     """
+    goal_start = flat_states[0].shape[0] - 3
 
+    # Object to Goal
+    dists = np.array([
+        np.linalg.norm(flat_states[t][7:10] - flat_states[t][goal_start:goal_start + 3])
+        for t in range(T)
+    ])
+    # Gripper to Object
+    arm_dists = np.array([
+        np.linalg.norm(flat_states[t][0:3] - flat_states[t][7:10])
+        for t in range(T)
+    ])
+    return dists, arm_dists
+
+
+def comp_reward(t, dists, arm_dists, weights, episode_success, num_steps):
+    """Calculates the dense reward for a single timestep."""
+    # Scaling factor to make small movements (cm) visible to the optimizer
+    scale = 10.0
+
+    obj_to_goal_rew = weights[0] * (-dists[t] * scale)
+    arm_to_obj_rew = -arm_dists[t] * scale
+    step_penalty = weights[3]
+
+    terminal_bonus = 0
+    if t == num_steps - 1 and episode_success:
+        terminal_bonus = weights[4]
+
+    return obj_to_goal_rew + arm_to_obj_rew + step_penalty + terminal_bonus
+
+
+# ==========================================
+# 3. ENVIRONMENT & VISUALIZATION
+# ==========================================
+def make_env(render=False):
     env = PnPNewRobotEnv(render=render)
     env = ResetWrapper(env)
     env = ActionNormalizer(env)
     env = TimeLimitWrapper(env, max_steps=150)
-    env.reset(seed=0)
-
+    # Ensure obs space matches the flattened 22-dim vector used by AWAC
+    env.observation_space = gym.spaces.Box(
+        low=-np.inf, high=np.inf, shape=(22,), dtype=np.float32
+    )
     return env
 
 
-def rollout(
-    env: Any,
-    action_seq: np.ndarray,
-    *,
-    options: Optional[Dict[str, Any]] = None,
-    max_steps: int = 150,
-) -> Tuple[List[Tuple[Dict[str, np.ndarray], np.ndarray]], List[np.ndarray]]:
-    """Execute a fixed action sequence in the environment and record the trajectory.
-
-    Args:
-        env: Wrapped gym environment (see setup_environment).
-        action_seq: Array of shape (T, action_dim) containing the pre-recorded
-            actions to replay.
-        options: Optional reset options forwarded to env.reset.
-        max_steps: Hard cap on the number of steps executed, regardless of
-            action_seq length.
-
-    Returns:
-        A tuple (traj_pairs, frames) where:
-            * traj_pairs is a list of (state dict, action) pairs;
-            * frames is a list of uint8 RGB arrays captured after each step.
-    """
-    T = min(int(action_seq.shape[0]), int(max_steps))
-    frames: List[np.ndarray] = []
-    traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]] = []
-
-    state, _info = env.reset(seed=0, options=options)
-    frames.append(capture_frame(env))
-
-    for t in range(T):
-        action = action_seq[t]
-
-        next_state, reward, terminated, truncated, info = env.step(action)
-
-        traj_pairs.append((state, action))
-        frames.append(capture_frame(env))
-
-        state = next_state
-
-        if terminated or truncated:
-            break
-
-    return traj_pairs, frames
+def capture_frame(env: Any, width: int = 480, height: int = 360) -> np.ndarray:
+    """Renders the robot scene to an RGB array using PyBullet."""
+    try:
+        base = getattr(env, "unwrapped", env)
+        pc = base.sim.physics_client
+        view_matrix = pc.computeViewMatrixFromYawPitchRoll(
+            cameraTargetPosition=[0.0, 0.0, 0.0],
+            distance=1.2, yaw=45, pitch=-35, roll=0, upAxisIndex=2
+        )
+        proj_matrix = pc.computeProjectionMatrixFOV(
+            fov=60.0, aspect=float(width) / float(height), nearVal=0.01, farVal=10.0
+        )
+        _, _, px, _, _ = pc.getCameraImage(
+            width=width, height=height, viewMatrix=view_matrix,
+            projectionMatrix=proj_matrix, renderer=pc.ER_BULLET_HARDWARE_OPENGL
+        )
+        rgba = np.reshape(px, (height, width, 4))
+        return rgba[:, :, :3].astype(np.uint8)
+    except Exception:
+        return np.zeros((height, width, 3), dtype=np.uint8)
 
 
-def random_rollout(
-    env: Any,
-    *,
-    max_steps: int = 150,
-) -> Tuple[List[Tuple[Dict[str, np.ndarray], np.ndarray]], List[np.ndarray]]:
-    """Execute a random policy in the environment and record the trajectory.
+# ==========================================
+# 4. MAIN TRAINING PIPELINE
+# ==========================================
+def main():
+    # Initialize Agent
+    agent = AWAC(env_fn=lambda: make_env(render=False), batch_size=BATCH_SIZE)
+    eval_env = make_env(render=False)
 
-    Actions are sampled uniformly from env.action_space at every step.
-
-    Args:
-        env: Wrapped gym environment (see :setup_environment).
-        max_steps: Maximum number of environment steps to execute.
-
-    Returns:
-        A tuple (traj_pairs, frames) where:
-            * traj_pairs is a list of (state dict, action) pairs;
-            * frames is a list of uint8 RGB arrays.
-    """
-    frames: List[np.ndarray] = []
-    traj_pairs: List[Tuple[Dict[str, np.ndarray], np.ndarray]] = []
-
-    state, _info = env.reset(seed=0)
-    frames.append(capture_frame(env))
-
-    for _ in range(max_steps):
-
-        action = env.action_space.sample()
-
-        next_state, reward, terminated, truncated, info = env.step(action)
-
-        traj_pairs.append((state, action))
-        frames.append(capture_frame(env))
-
-        state = next_state
-
-        if terminated or truncated:
-            break
-
-    return traj_pairs, frames
-
-
-def main() -> None:
-    """generate expert and random trajectory clips, then serialise records.
-
-    1. Load all expert demos from ``<repo_root>/demo_data/PickAndPlace``.
-    2. Roll out each demo in the environment, saving an MP4 clip and computing
-       feature vectors.
-    3. Generate 10 additional random-policy clips.
-    4. Serialise all TrajectoryRecord objects to
-       ``<repo_root>/saved/trajectory_records.json``.
-    """
-    env = setup_environment(render=True)  # CHECK
-
-    repo_root = Path(__file__).resolve().parents[1]
+    # --- STEP 1: LOAD DEMONSTRATIONS ---
     demo_dir = repo_root / "demo_data" / "PickAndPlace"
-    saved_dir = repo_root / "saved"
-    clips_dir = saved_dir / "clips"
-    saved_dir.mkdir(parents=True, exist_ok=True)
-    clips_dir.mkdir(parents=True, exist_ok=True)
-
     demos = prepare_demo_pool(demo_dir, verbose=True)
-    print(f"\nLoaded {len(demos)} expert demos from: {demo_dir}")
 
-    saved_records: List[TrajectoryRecord] = []
-    import csv
+    print(f"\n[1/4] Loading {len(demos)} demos into Replay Buffer...")
+    demo_env = make_env()
 
-    feature_rows = []
-
-    fps = 30
-    writer_kwargs: Dict[str, Any] = dict(
-        fps=fps,
-        codec="libx264",
-        ffmpeg_params=["-preset", "ultrafast", "-crf", "28"],
-    )
-
-    print(f"\nGenerating {len(demos)} expert clips")
-
-    for i, demo in enumerate(demos):
+    for demo in demos:
         action_seq = demo["action_trajectory"]
-        traj_pairs, frames = rollout(env, action_seq)
+        obs_dict, _ = demo_env.reset(seed=0)
 
-        clip_path = clips_dir / f"expert_{i}.mp4"
+        temp_states, temp_actions, temp_next_states = [], [], []
 
-        imageio.mimsave(clip_path, frames, **writer_kwargs)
+        # Rollout demo actions to get correct next_states and rewards
+        for action in action_seq:
+            curr_state_flat = reconstruct_state(obs_dict)
+            next_obs_dict, _, terminated, truncated, info = demo_env.step(action)
+            next_state_flat = reconstruct_state(next_obs_dict)
 
-        features = feature_function(traj_pairs)
+            temp_states.append(curr_state_flat)
+            temp_actions.append(action)
+            temp_next_states.append(next_state_flat)
 
-        feature_rows.append(
-            {
-                "type": "expert",
-                "clip": str(clip_path),
-                **{f"f{j}": float(features[j]) for j in range(len(features))},
-            }
-        )
+            obs_dict = next_obs_dict
+            if terminated or truncated: break
 
-        record = TrajectoryRecord(
-            clip_path=str(clip_path),
-            features=features,
-        )
+        T = len(temp_actions)
+        if T == 0: continue
 
-        saved_records.append(record)
+        # Calculate rewards based on the trajectory just generated
+        states_for_dist = temp_states + [temp_next_states[-1]]
+        dists, arm_dists = compute_distances(states_for_dist, T)
+        success = info.get("is_success", False)
 
-    print(f"\nGenerating 10 random clips")
-    for i in range(10):
-        traj_pairs, frames = random_rollout(env)
+        for t in range(T):
+            reward = comp_reward(t, dists, arm_dists, weights, success, T)
+            agent.replay_buffer.store(
+                temp_states[t], temp_actions[t], reward, temp_next_states[t], float(t == T - 1)
+            )
 
-        clip_path = clips_dir / f"random_{i}.mp4"
+    # --- STEP 2: OFFLINE PRE-TRAINING ---
+    print(f"\n[2/4] Pre-training on demos for {PRETRAIN_STEPS} iterations...")
+    for i in range(PRETRAIN_STEPS):
+        batch = agent.replay_buffer.sample_batch(BATCH_SIZE)
+        agent.update(data=batch, update_timestep=i)
+        if (i + 1) % 2000 == 0:
+            print(f"  Iteration {i + 1}/{PRETRAIN_STEPS}")
 
-        imageio.mimsave(clip_path, frames, **writer_kwargs)
+    # --- STEP 3: ONLINE INTERACTION ---
+    print(f"\n[3/4] Starting Online Learning (Max Steps: {MAX_STEPS})...")
+    total_steps = 0
+    steps_log, success_log = [], []
 
-        features = feature_function(traj_pairs)
+    while total_steps < MAX_STEPS:
+        obs_dict, _ = agent.env.reset()
+        obs = reconstruct_state(obs_dict)
 
-        feature_rows.append(
-            {
-                "type": "random",
-                "clip": str(clip_path),
-                **{f"f{j}": float(features[j]) for j in range(len(features))},
-            }
-        )
+        episode_data = []
+        done = False
 
-        record = TrajectoryRecord(
-            clip_path=str(clip_path),
-            features=features,
-        )
+        while not done:
+            # AWAC uses a stochastic policy for exploration
+            action = agent.get_action(obs, deterministic=False)
+            next_obs_dict, _, terminated, truncated, info = agent.env.step(action)
+            next_obs = reconstruct_state(next_obs_dict)
 
-        saved_records.append(record)
+            episode_data.append((obs, action, next_obs, terminated or truncated, info))
+            obs = next_obs
+            done = terminated or truncated
+            total_steps += 1
 
-    env.close()
+        # Process episode for the buffer
+        T_ep = len(episode_data)
+        states_seq = [step[0] for step in episode_data] + [episode_data[-1][2]]
+        dists, arm_dists = compute_distances(states_seq, T_ep)
+        success = episode_data[-1][4].get("is_success", False)
 
-    out_path = saved_dir / "trajectory_records.json"
-    with open(out_path, "w") as f:
-        json.dump([r.to_json() for r in saved_records], f, indent=2)
+        for t in range(T_ep):
+            s, a, ns, d, _ = episode_data[t]
+            reward = comp_reward(t, dists, arm_dists, weights, success, T_ep)
+            agent.replay_buffer.store(s, a, reward, ns, float(d))
 
-    print(f"Saved {len(saved_records)} trajectory records to {out_path}")
+        # Perform gradient updates
+        if agent.replay_buffer.size > BATCH_SIZE:
+            # Update once per step taken in the environment (standard RL ratio)
+            for _ in range(T_ep):
+                batch = agent.replay_buffer.sample_batch(BATCH_SIZE)
+                agent.update(data=batch, update_timestep=total_steps)
 
-    csv_path = out_path / "trajectory_features.csv"
+        # --- STEP 4: EVALUATION & VISUALIZATION ---
+        if total_steps % EVAL_EVERY < T_ep:
+            eval_successes = 0
+            video_frames = []
 
-    with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=feature_rows[0].keys())
-        writer.writeheader()
-        writer.writerows(feature_rows)
+            for trial in range(10):
+                o_d, _ = eval_env.reset()
+                o = reconstruct_state(o_d)
+                d_eval = False
 
-    print(f"Saved feature CSV to {csv_path}")
+                while not d_eval:
+                    if trial == 0 and SAVE_VIDEO:
+                        video_frames.append(capture_frame(eval_env))
+
+                    # Deterministic policy for evaluation
+                    a = agent.get_action(o, deterministic=True)
+                    o_d, _, term, trunc, inf = eval_env.step(a)
+                    o = reconstruct_state(o_d)
+                    d_eval = term or trunc
+
+                if inf.get("is_success", False):
+                    eval_successes += 1
+
+            avg_sr = eval_successes / 10
+            steps_log.append(total_steps)
+            success_log.append(avg_sr)
+
+            print(f"  Step: {total_steps} | Success Rate: {avg_sr:.2f}")
+
+            if SAVE_VIDEO and video_frames:
+                video_path = clips_dir / f"eval_step_{total_steps}.mp4"
+                imageio.mimsave(video_path, video_frames, fps=30, codec="libx264")
+
+            # Save periodic checkpoints
+            torch.save(agent.ac.state_dict(), output_dir / f"policy_step_{total_steps}.pt")
+
+    # Final Results
+    plt.figure(figsize=(8, 5))
+    plt.plot(steps_log, success_log, marker='o', linestyle='-', color='b')
+    plt.title("AWAC Learning Progress (Pick and Place)")
+    plt.xlabel("Environment Steps")
+    plt.ylabel("Success Rate")
+    plt.grid(True)
+    plt.savefig(output_dir / "learning_curve.png")
+    print(f"\nTraining Complete. Plot saved to {output_dir}/learning_curve.png")
 
 
 if __name__ == "__main__":

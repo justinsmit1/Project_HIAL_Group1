@@ -1,6 +1,6 @@
 import os
 from time import sleep
-from Project_HIAL_Group1.alg.banana import feature_function, rollout
+from banana import *
 from envs.task_envs import PnPNewRobotEnv
 from utils.env_wrappers import ActionNormalizer, ResetWrapper, TimeLimitWrapper
 import csv
