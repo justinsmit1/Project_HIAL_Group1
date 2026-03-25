@@ -179,7 +179,7 @@ def main() -> None:
     # "thompson", DONE
     # "volume_removal", DONE
 
-    acquisition_function = "volume_removal"
+    acquisition_function = "disagreement"
     out_path = saved_dir / f"feature_weights_{acquisition_function}.csv"
 
     try:

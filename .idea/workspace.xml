@@ -23,33 +23,8 @@
     <list default="true" id="15fffaf5-fe2e-42ba-a4fa-c13082c6d791" name="Changes" comment="Student version">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/alg/policy_learn_chat.py" beforeDir="false" afterPath="$PROJECT_DIR$/alg/policy_learn_chat.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/alg/policy_visualize.py" beforeDir="false" afterPath="$PROJECT_DIR$/alg/policy_visualize.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/clips/step_2100.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/saved/policy_learning/clips/step_2100.mp4" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/clips/step_4050.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/saved/policy_learning/clips/step_4050.mp4" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/clips/step_6000.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/saved/policy_learning/clips/step_6000.mp4" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/clips/step_8100.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/saved/policy_learning/clips/step_8100.mp4" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/saved/policy_learning/curve.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/learning_curve.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_10117.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_12067.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_14017.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_16117.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_18067.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_20138.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_2100.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_4050.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_6000.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_8100.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_10050.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_12000.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_14100.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_16050.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_18000.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_20100.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_2100.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_4050.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_6000.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_step_8100.pt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alg/pref_learn.py" beforeDir="false" afterPath="$PROJECT_DIR$/alg/pref_learn.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/saved/policy_learning/policy_latest.pt" beforeDir="false" afterPath="$PROJECT_DIR$/saved/policy_learning/policy_latest.pt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -86,38 +61,38 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.banana.executor": "Run",
-    "Python.feature_analysis.executor": "Run",
-    "Python.policy_learn.executor": "Run",
-    "Python.policy_learn_chat.executor": "Run",
-    "Python.policy_visualize.executor": "Run",
-    "Python.pref_learn.executor": "Run",
-    "Python.pref_learn_chat.executor": "Run",
-    "Python.query_optimizer.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "AWAC__LLM__FIX",
-    "last_opened_file_path": "/Users/justinsmit_studie/Documents/project_hial/HIAL-PROJECT",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "run.code.analysis.last.selected.profile": "pProject Default",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.banana.executor&quot;: &quot;Run&quot;,
+    &quot;Python.feature_analysis.executor&quot;: &quot;Run&quot;,
+    &quot;Python.policy_learn.executor&quot;: &quot;Run&quot;,
+    &quot;Python.policy_learn_chat.executor&quot;: &quot;Run&quot;,
+    &quot;Python.policy_visualize.executor&quot;: &quot;Run&quot;,
+    &quot;Python.pref_learn.executor&quot;: &quot;Run&quot;,
+    &quot;Python.pref_learn_chat.executor&quot;: &quot;Run&quot;,
+    &quot;Python.query_optimizer.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;AWAC__LLM__FIX&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/justinsmit_studie/Documents/project_hial/HIAL-PROJECT&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.policy_visualize">
+  <component name="RunManager" selected="Python.pref_learn">
     <configuration name="banana" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="HIAL-PROJECT" />
       <option name="ENV_FILES" value="" />
@@ -133,29 +108,6 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/alg/banana.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="feature_analysis" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="HIAL-PROJECT" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/feature_analysis.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -233,13 +185,36 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="pref_learn" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="HIAL-PROJECT" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/alg" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/alg/pref_learn.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.policy_visualize" />
+        <item itemvalue="Python.pref_learn" />
         <item itemvalue="Python.policy_learn_chat" />
+        <item itemvalue="Python.policy_visualize" />
         <item itemvalue="Python.banana" />
         <item itemvalue="Python.policy_learn" />
-        <item itemvalue="Python.feature_analysis" />
       </list>
     </recent_temporary>
   </component>
@@ -300,21 +275,21 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/alg/policy_learn_chat.py</url>
-          <line>162</line>
+          <line>209</line>
           <option name="timeStamp" value="4" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/HIAL_PROJECT$policy_learn_chat.coverage" NAME="policy_learn_chat Coverage Results" MODIFIED="1774093269178" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
-    <SUITE FILE_PATH="coverage/HIAL_PROJECT$banana.coverage" NAME="banana Coverage Results" MODIFIED="1773935906376" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
+    <SUITE FILE_PATH="coverage/HIAL_PROJECT$policy_learn_chat.coverage" NAME="policy_learn_chat Coverage Results" MODIFIED="1774434151799" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
+    <SUITE FILE_PATH="coverage/HIAL_PROJECT$banana.coverage" NAME="banana Coverage Results" MODIFIED="1774423375719" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
     <SUITE FILE_PATH="coverage/HIAL_PROJECT$pref_learn_chat.coverage" NAME="pref_learn_chat Coverage Results" MODIFIED="1773934631576" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
     <SUITE FILE_PATH="coverage/HIAL_PROJECT$query_optimizer.coverage" NAME="query_optimizer Coverage Results" MODIFIED="1773224689029" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/APReL/aprel/querying" />
-    <SUITE FILE_PATH="coverage/HIAL_PROJECT$feature_analysis.coverage" NAME="feature_analysis Coverage Results" MODIFIED="1773825261978" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/HIAL_PROJECT$pref_learn.coverage" NAME="pref_learn Coverage Results" MODIFIED="1773934690119" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
+    <SUITE FILE_PATH="coverage/HIAL_PROJECT$feature_analysis.coverage" NAME="feature_analysis Coverage Results" MODIFIED="1774428381088" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/HIAL_PROJECT$policy_learn.coverage" NAME="policy_learn Coverage Results" MODIFIED="1773934942962" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
-    <SUITE FILE_PATH="coverage/HIAL_PROJECT$policy_visualize.coverage" NAME="policy_visualize Coverage Results" MODIFIED="1774093991127" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
+    <SUITE FILE_PATH="coverage/HIAL_PROJECT$pref_learn.coverage" NAME="pref_learn Coverage Results" MODIFIED="1774434401045" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
+    <SUITE FILE_PATH="coverage/HIAL_PROJECT$policy_visualize.coverage" NAME="policy_visualize Coverage Results" MODIFIED="1774421302844" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/alg" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

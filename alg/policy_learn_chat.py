@@ -56,50 +56,97 @@ def compute_trajectory_metrics(flat_states: List[np.ndarray]):
 
 import numpy as np
 
-
 def comp_reward(t, metrics, weights, success, T_ep):
+    """
+    Improved reward for pick-and-place tasks.
+
+    Args:
+        t: time step
+        metrics: obj_to_goal, grip_to_obj, obj_heights, grip_widths, obj_positions
+        weights: array of feature weights [unused here except step penalty]
+        success: bool, whether trajectory was successful
+        T_ep: int, trajectory length
+    """
     obj_to_goal, grip_to_obj, obj_heights, grip_widths, obj_positions = metrics
+
     reward = 0.0
 
-    # 1. Reach Reward (Sharper exponential to encourage precision)
-    dist_temp = 10 #15,
-    reward += 1.0 * np.exp(-dist_temp * grip_to_obj[t]) #1.0
+    # --- 1. Reach reward (continuous) ---
+    # Encourages gripper to get closer to the object
+    reach_reward = np.exp(-10.0 * grip_to_obj[t])  # smooth exponential decay
+    reward += 2.0 * reach_reward
 
-    # 2. Grasping Logic
-    # We want the gripper to be close AND the width to be small (closed)
-    is_near = grip_to_obj[t] < 0.04 #0.035
-    is_closed = grip_widths[t] < 0.03 #0.03
+    # --- 2. Grasping reward (continuous) ---
+    # Encourage gripper to be near object AND partially closed
+    grasp_factor = np.clip(1.0 - grip_widths[t] / 0.05, 0, 1)  # normalized closure
+    near_factor = np.clip(1.0 - grip_to_obj[t] / 0.05, 0, 1)     # normalized proximity
+    grasp_reward = near_factor * grasp_factor
+    reward += 5.0 * grasp_reward
 
-    if is_near:
-        #reward += 2.0 * (1.0 - grip_widths[t])
-
-        if is_closed:
-            reward += 10.0  # Reward for actually closing while near
-        else:
-            reward -= 3  # Penalty for hovering with open claws, instead of -1
-
-    # 3. Lifting Reward (Only if we are actually grasping)
+    # --- 3. Lift reward ---
     lift_height = max(0.0, obj_heights[t] - TABLE_Z)
-    if is_closed and is_near:
-        reward += 10.0 * lift_height
+    lift_reward = lift_height * grasp_reward  # only reward if grasped
+    reward += 5.0 * lift_reward
 
-    # 4. Movement & Goal
-    if is_near and is_closed:
-        # Move object toward goal
-        reward += weights[0] * (1.0 - np.tanh(4.0 * obj_to_goal[t])) #1.0
+    # --- 4. Move object toward goal ---
+    if t > 0:
+        prev_to_goal = obj_to_goal[t - 1]
+        curr_to_goal = obj_to_goal[t]
+        goal_progress = np.clip(prev_to_goal - curr_to_goal, 0, 0.1)  # reward forward progress
+        reward += 5.0 * goal_progress
 
-        # Reward velocity toward goal
-        if t > 0:
-            vel = obj_to_goal[t - 1] - obj_to_goal[t]
-            reward += 20.0 * max(0, vel)
+    # --- 5. Step penalty (small negative reward to encourage efficiency) ---
+    reward += weights[3]  # usually negative
 
-    # 5. Penalties and Success
-    reward += weights[3]  # Small step penalty (usually negative)
-
+    # --- 6. Terminal success bonus ---
     if t == T_ep - 1 and success:
-        reward += 50.0  # Significant terminal bonus
+        reward += 20.0  # moderate bonus
 
     return reward
+
+# def comp_reward(t, metrics, weights, success, T_ep):
+#     obj_to_goal, grip_to_obj, obj_heights, grip_widths, obj_positions = metrics
+#     reward = 0.0
+#
+#     # 1. Reach Reward (Sharper exponential to encourage precision)
+#     dist_temp = 10 #15,
+#     reward += 1.0 * np.exp(-dist_temp * grip_to_obj[t]) #1.0
+#
+#     # 2. Grasping Logic
+#     # We want the gripper to be close AND the width to be small (closed)
+#     is_near = grip_to_obj[t] < 0.04 #0.035
+#     is_closed = grip_widths[t] < 0.03 #0.03
+#
+#     if is_near:
+#         #reward += 2.0 * (1.0 - grip_widths[t])
+#
+#         if is_closed:
+#             reward += 10.0  # Reward for actually closing while near
+#         else:
+#             reward -= 3  # Penalty for hovering with open claws, instead of -1
+#
+#     # 3. Lifting Reward (Only if we are actually grasping)
+#     lift_height = max(0.0, obj_heights[t] - TABLE_Z)
+#     if is_closed and is_near:
+#         reward += 10.0 * lift_height
+#
+#     # 4. Movement & Goal
+#     if is_near and is_closed:
+#         # Move object toward goal
+#         reward += weights[0] * (1.0 - np.tanh(4.0 * obj_to_goal[t])) #1.0
+#
+#         # Reward velocity toward goal
+#         if t > 0:
+#             vel = obj_to_goal[t - 1] - obj_to_goal[t]
+#             reward += 20.0 * max(0, vel)
+#
+#     # 5. Penalties and Success
+#     reward += weights[3]  # Small step penalty (usually negative)
+#
+#     if t == T_ep - 1 and success:
+#         reward += 50.0  # Significant terminal bonus
+#
+#     return reward
 
 
 # ==========================================
